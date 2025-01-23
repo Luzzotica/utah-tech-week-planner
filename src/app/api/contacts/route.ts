@@ -44,7 +44,7 @@ export async function POST(request: Request) {
 
     const searchData = await searchResponse.json();
     let contactId = searchData.contacts?.[0]?.id;
-    let tags = searchData.contacts?.[0]?.tags;
+    const tags = searchData.contacts?.[0]?.tags;
 
     if (!contactId) {
       // Contact doesn't exist, create new one

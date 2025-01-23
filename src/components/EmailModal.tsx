@@ -22,7 +22,7 @@ export default function EmailModal({ isOpen, onClose, onSubmit, eventCount }: Em
     try {
       await onSubmit(email)
       onClose()
-    } catch (err) {
+    } catch (_err) {
       setError('Failed to submit email. Please try again.')
     } finally {
       setIsLoading(false)

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getInitialRecommendations, getFinalRecommendations } from '@/utils/openai';
+import { getInitialRecommendations } from '@/utils/openai';
 import events from '@/data/events.json';
 import { EventData } from '@/types';
 
