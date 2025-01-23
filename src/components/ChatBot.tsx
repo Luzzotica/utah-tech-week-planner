@@ -8,7 +8,7 @@ interface ChatBotProps {
   onEventsSelected: (eventIds: string[]) => void;
 }
 
-function generateResponse(recommendedEvents: EventData[], userMessage: string): string {
+function generateResponse(recommendedEvents: EventData[]): string {
   if (recommendedEvents.length === 0) {
     return "I couldn't find any events matching your criteria. Could you try being more specific or try different keywords?";
   }
@@ -95,7 +95,7 @@ export default function ChatBot({ onEventsSelected }: ChatBotProps) {
         .filter(event => recommendedEventIds.includes(event.id.toString()));
 
       // Generate dynamic response
-      const responseMessage = generateResponse(recommendedEvents, input);
+      const responseMessage = generateResponse(recommendedEvents);
 
       setMessages(prev => [...prev, {
         role: 'assistant',
