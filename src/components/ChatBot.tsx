@@ -1,11 +1,44 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import events from '@/data/events.json'
 import { PaperAirplaneIcon } from '@heroicons/react/24/solid'
-
+import { EventData } from '@/types';
 interface ChatBotProps {
   onEventsSelected: (eventIds: string[]) => void;
+}
+
+function generateResponse(recommendedEvents: EventData[], userMessage: string): string {
+  if (recommendedEvents.length === 0) {
+    return "I couldn't find any events matching your criteria. Could you try being more specific or try different keywords?";
+  }
+
+  // Group events by day
+  const eventsByDay = recommendedEvents.reduce((acc, event) => {
+    const day = new Date(event.start).toLocaleDateString('en-US', { weekday: 'long' });
+    if (!acc[day]) acc[day] = [];
+    acc[day].push(event);
+    return acc;
+  }, {} as Record<string, EventData[]>);
+
+  // Generate summary
+  let response = `I found ${recommendedEvents.length} event${recommendedEvents.length > 1 ? 's' : ''} that might interest you:\n\n`;
+
+  Object.entries(eventsByDay).forEach(([day, events]) => {
+    response += `${day}:\n`;
+    events.forEach(event => {
+      const time = new Date(event.start).toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit'
+      });
+      response += `• ${event.title} at ${time}\n`;
+    });
+    response += '\n';
+  });
+
+  response += "I've added these events to the calendar for you to review. Let me know if you'd like to see different events or have any questions!";
+
+  return response;
 }
 
 export default function ChatBot({ onEventsSelected }: ChatBotProps) {
@@ -22,6 +55,14 @@ export default function ChatBot({ onEventsSelected }: ChatBotProps) {
 
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  
+  // Add ref for messages container
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Scroll to bottom whenever messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -49,17 +90,17 @@ export default function ChatBot({ onEventsSelected }: ChatBotProps) {
       const recommendedEventIds = data.recommendations;
       onEventsSelected(recommendedEventIds);
 
-      const reply = recommendedEventIds.length > 0
-        ? {
-            role: 'assistant' as const,
-            content: 'I\'ve added the recommended events to the calendar. Let me know if you\'d like to see different events!'
-          }
-        : {
-            role: 'assistant' as const,
-            content: 'I couldn\'t find any events matching your interests. Could you try being more specific?'
-          };
+      // Get full event details for recommended events
+      const recommendedEvents = (events as EventData[])
+        .filter(event => recommendedEventIds.includes(event.id.toString()));
 
-      setMessages(prev => [...prev, reply])
+      // Generate dynamic response
+      const responseMessage = generateResponse(recommendedEvents, input);
+
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: responseMessage
+      }]);
     } catch (error) {
       console.error('Error getting recommendations:', error)
       setMessages(prev => [...prev, {
@@ -79,7 +120,7 @@ export default function ChatBot({ onEventsSelected }: ChatBotProps) {
           message.role === 'assistant'
             ? 'bg-gray-100 text-gray-900'
             : 'bg-blue-600 text-white ml-auto'
-        } p-4 rounded-lg max-w-[80%] shadow-sm`}>
+        } p-4 rounded-lg max-w-[80%] shadow-sm whitespace-pre-line`}>
           {message.content}
         </div>
         {message.events && (
@@ -116,6 +157,8 @@ export default function ChatBot({ onEventsSelected }: ChatBotProps) {
             {renderMessage(message)}
           </div>
         ))}
+        {/* Add invisible div for scrolling */}
+        <div ref={messagesEndRef} />
       </div>
 
       <form onSubmit={handleSubmit} className="p-4 border-t border-gray-200 flex-shrink-0">

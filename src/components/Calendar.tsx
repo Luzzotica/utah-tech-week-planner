@@ -5,7 +5,7 @@ import { EventData } from '@/types'
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const DATES = ['27/1', '28/1', '29/1', '30/1', '31/1', '1/2']
-const HOURS = Array.from({ length: 11 }, (_, i) => i + 7) // 7am to 5pm
+const HOURS = Array.from({ length: 14 }, (_, i) => i + 7) // 8am to 8pm
 
 interface CalendarProps {
   selectedEvents: EventData[];
@@ -20,12 +20,12 @@ export default function Calendar({ selectedEvents, onEventClick, selectedEventId
     const endTime = new Date(event.end);
     
     const durationHours = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
-    const height = `${durationHours * 4}rem`;
+    const height = `${durationHours * 3.8}rem`;
     
     const startHour = startTime.getHours();
     const startMinutes = startTime.getMinutes();
     const hoursSince7am = (startHour - 7) + (startMinutes / 60);
-    const top = `${hoursSince7am * 4}rem`;
+    const top = `${hoursSince7am * 3.8}rem`;
     
     // Calculate width and offset for overlapping events
     const width = `${90 / totalColumns}%`;
@@ -99,7 +99,10 @@ export default function Calendar({ selectedEvents, onEventClick, selectedEventId
           {/* Time column */}
           <div className="relative">
             {HOURS.map((hour) => (
-              <div key={`time-${hour}`} className="h-16 border-t border-gray-100 relative">
+              <div 
+                key={`time-${hour}`} 
+                className="h-[3.8rem] border-t border-gray-100 relative"
+              >
                 <span className="absolute -top-3 left-2 text-sm text-gray-500">
                   {hour % 12 || 12}{hour >= 12 ? 'pm' : 'am'}
                 </span>
@@ -112,7 +115,10 @@ export default function Calendar({ selectedEvents, onEventClick, selectedEventId
             <div key={`day-${dayIndex}`} className="relative">
               {/* Hour grid lines */}
               {HOURS.map((hour) => (
-                <div key={`grid-${dayIndex}-${hour}`} className="h-16 border-t border-gray-100" />
+                <div 
+                  key={`grid-${dayIndex}-${hour}`} 
+                  className="h-[3.8rem] border-t border-gray-100"
+                />
               ))}
               
               {/* Events */}
