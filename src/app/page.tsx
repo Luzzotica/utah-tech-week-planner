@@ -1,101 +1,211 @@
-import Image from "next/image";
+'use client'
+
+import { useState } from 'react'
+import Calendar from '@/components/Calendar'
+import ChatBot from '@/components/ChatBot'
+import events from '@/data/events.json'
+import { EventData } from '@/types'
+import EmailModal from '@/components/EmailModal'
+
+// Add this helper function at the top of the file, outside the component
+function formatDateForICal(date: Date) {
+  return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+}
+
+function createICalEvent(event: EventData) {
+  const startDate = new Date(event.start);
+  const endDate = new Date(event.end);
+  
+  return `BEGIN:VEVENT
+UID:${event.id}@utahtechweek2025
+DTSTAMP:${formatDateForICal(new Date())}
+DTSTART:${formatDateForICal(startDate)}
+DTEND:${formatDateForICal(endDate)}
+SUMMARY:${event.title}
+DESCRIPTION:${event.description.replace(/\n/g, '\\n')}
+LOCATION:${event.address}
+URL:${event.registration_url}
+END:VEVENT`;
+}
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [selectedEventIds, setSelectedEventIds] = useState<Set<number>>(new Set())
+  const [recommendedEvents, setRecommendedEvents] = useState<EventData[]>([])
+  const [selectedEvent, setSelectedEvent] = useState<EventData | null>(null)
+  const [showEmailModal, setShowEmailModal] = useState(false)
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const handleEventClick = (event: EventData) => {
+    setSelectedEvent(event)
+  }
+
+  const handleToggleEvent = (event: EventData) => {
+    setSelectedEventIds(prev => {
+      const next = new Set(prev)
+      if (next.has(event.id)) {
+        next.delete(event.id)
+      } else {
+        next.add(event.id)
+      }
+      return next
+    })
+  }
+
+  const handleEventsRecommended = (eventIds: string[]) => {
+    // Convert new recommendations to EventData objects
+    const newEvents = (events as EventData[]).filter(event => 
+      eventIds.includes(event.id.toString())
+    )
+    
+    // Replace previous recommendations with new ones
+    setRecommendedEvents(newEvents)
+  }
+
+  // Combine saved events with current recommendations
+  const visibleEvents = [
+    // Include saved events
+    ...(events as EventData[]).filter(event => selectedEventIds.has(event.id)),
+    // Include new recommendations that aren't already saved
+    ...recommendedEvents.filter(event => !selectedEventIds.has(event.id))
+  ]
+
+  const handleExport = () => {
+    setShowEmailModal(true)
+  }
+
+  const handleEmailSubmit = async (email: string) => {
+    // Submit email to GHL
+    const response = await fetch('/api/contacts', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to submit email');
+    }
+
+    // Generate and download calendar file
+    const selectedEvents = (events as EventData[]).filter(event => selectedEventIds.has(event.id));
+    
+    const icalContent = `BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Utah Tech Week 2025//Event Calendar//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+${selectedEvents.map(event => createICalEvent(event)).join('\n')}
+END:VCALENDAR`;
+
+    const blob = new Blob([icalContent], { type: 'text/calendar;charset=utf-8' });
+    const link = document.createElement('a');
+    link.href = window.URL.createObjectURL(blob);
+    link.download = 'utah-tech-week-events.ics';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  return (
+    <>
+      <div className="flex flex-row gap-4 h-[calc(100vh-theme(spacing.8)*2)] w-full">
+        {/* Chatbot - Left Column */}
+        <div className="flex flex-col w-[320px] h-full">
+          <div className="flex justify-between items-center mb-4 flex-shrink-0">
+            <h1 className="text-2xl font-bold text-gray-900 truncate">Utah Tech Week 2025</h1>
+          </div>
+          <div className="flex-1 min-h-0">
+            <ChatBot onEventsSelected={handleEventsRecommended} />
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
-  );
+
+        {/* Calendar - Middle Column */}
+        <div className="flex flex-col flex-1 min-w-0">
+          <div className="bg-white rounded-lg shadow-sm p-4 flex-1 min-w-0">
+            <Calendar 
+              selectedEvents={visibleEvents} 
+              onEventClick={handleEventClick}
+              selectedEventIds={selectedEventIds}
+            />
+          </div>
+        </div>
+
+        {/* Event Detail - Right Column */}
+        <div className="flex flex-col w-[400px] h-full">
+          <div className="flex-1 min-h-0">
+            {selectedEvent ? (
+              <div className="bg-white rounded-lg shadow-sm flex flex-col h-full">
+                <div className="p-4 border-b border-gray-200 flex-shrink-0">
+                  <h2 className="text-lg font-semibold text-gray-900 break-words">
+                    {selectedEvent.title}
+                  </h2>
+                </div>
+                <div className="p-4 space-y-3 overflow-y-auto flex-1">
+                  <div>
+                    <div className="text-sm font-medium text-gray-500">Host</div>
+                    <div className="text-gray-900">{selectedEvent.host || 'No host specified'}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium text-gray-500">Time</div>
+                    <div className="text-gray-900">
+                      {new Date(selectedEvent.start).toLocaleString()} - {new Date(selectedEvent.end).toLocaleString()}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium text-gray-500">Location</div>
+                    <div className="text-gray-900">{selectedEvent.address}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium text-gray-500">Description</div>
+                    <div className="text-gray-900 whitespace-pre-wrap">{selectedEvent.description}</div>
+                  </div>
+                </div>
+                <div className="p-4 border-t border-gray-200 flex-shrink-0 space-y-2">
+                  <button
+                    onClick={() => handleToggleEvent(selectedEvent)}
+                    className={`w-full px-3 py-1.5 rounded-lg transition-colors text-sm ${
+                      selectedEventIds.has(selectedEvent.id)
+                        ? 'bg-red-600 hover:bg-red-700 text-white'
+                        : 'bg-blue-600 hover:bg-blue-700 text-white'
+                    }`}
+                  >
+                    {selectedEventIds.has(selectedEvent.id) ? 'Remove from Calendar' : 'Add to Calendar'}
+                  </button>
+                  <a
+                    href={selectedEvent.registration_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block w-full px-3 py-1.5 bg-gray-100 text-gray-900 rounded-lg hover:bg-gray-200 transition-colors text-center text-sm"
+                  >
+                    Register for Event
+                  </a>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-white rounded-lg shadow-sm p-4 text-center text-gray-500">
+                Select an event to view details
+              </div>
+            )}
+          </div>
+          
+          {selectedEventIds.size > 0 && (
+            <div className="mt-4 flex-shrink-0">
+              <button
+                onClick={handleExport}
+                className="w-full px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+              >
+                Export {selectedEventIds.size} Events
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+      <EmailModal
+        isOpen={showEmailModal}
+        onClose={() => setShowEmailModal(false)}
+        onSubmit={handleEmailSubmit}
+        eventCount={selectedEventIds.size}
+      />
+    </>
+  )
 }
